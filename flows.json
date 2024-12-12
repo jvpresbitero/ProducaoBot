@@ -1,0 +1,479 @@
+[
+    {
+        "id": "edfe50bd74db1d17",
+        "type": "tab",
+        "label": "/caixas",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "843f6c7661a3f8cf",
+        "type": "tab",
+        "label": "/aoki",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "8e24665d1ed58599",
+        "type": "tab",
+        "label": "/hipo",
+        "disabled": false,
+        "info": "",
+        "env": []
+    },
+    {
+        "id": "80299019b3787c27",
+        "type": "telegram bot",
+        "botname": "TesteProducaoBot",
+        "usernames": "",
+        "chatids": "",
+        "baseapiurl": "",
+        "testenvironment": false,
+        "updatemode": "polling",
+        "addressfamily": "",
+        "pollinterval": "300",
+        "usesocks": false,
+        "sockshost": "",
+        "socksprotocol": "socks5",
+        "socksport": "6667",
+        "socksusername": "anonymous",
+        "sockspassword": "",
+        "bothost": "",
+        "botpath": "",
+        "localbotport": "8443",
+        "publicbotport": "8443",
+        "privatekey": "",
+        "certificate": "",
+        "useselfsignedcertificate": false,
+        "sslterminated": false,
+        "verboselogging": false
+    },
+    {
+        "id": "597db39abe78807f",
+        "type": "debug",
+        "z": "edfe50bd74db1d17",
+        "name": "debug 8",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 300,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "ddf8a0475f26a830",
+        "type": "function",
+        "z": "edfe50bd74db1d17",
+        "name": "caixas",
+        "func": "// Recupera o estado do usuário com base no chatId\nlet session = flow.get(`session_${msg.payload.chatId}`) || {};\n\n// Função para verificar se a resposta é numérica\nfunction isNumeric(value) {\n    return !isNaN(value) && Number.isFinite(Number(value));\n}\n\n// Função para verificar se a resposta é uma das letras válidas (A, B ou C)\nfunction isValidTurno(value) {\n    return value === \"A\" || value === \"B\" || value === \"C\";\n}\n\n// Verifica se o comando /caixas foi enviado e reinicia o fluxo\nif (msg.payload.content === \"/caixas\") {\n    // Reinicia o fluxo, excluindo qualquer estado anterior\n    session = { step: \"askTurno\", finished: false }; \n    flow.set(`session_${msg.payload.chatId}`, session); // Salva o estado reiniciado\n\n    // Envia a primeira pergunta (sobre o turno)\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Vamos lá! Para começar, informe qual o seu turno: (Responda com A, B ou C)\"\n    };\n    return msg;\n}\n\n// Verifica o passo atual do diálogo\nif (!session.step || session.finished) {\n    // Ignora mensagens se o fluxo foi finalizado\n    return null;\n}\n\n// Função para tratar respostas numéricas ou erro\nfunction handleAnswer(field, nextStep, question) {\n    // Verifica se a resposta é numérica\n    if (!isNumeric(msg.payload.content)) {\n        // Se a resposta não for um número, envia erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira apenas números.\"\n        };\n        // Retorna a mensagem de erro e não avança para a próxima pergunta\n        return [null, msg];\n    }\n\n    // Salva a resposta numérica\n    session[field] = msg.payload.content;\n    session.step = nextStep; // Atualiza o passo\n    flow.set(`session_${msg.payload.chatId}`, session); // Salva o estado\n\n    // Envia a próxima pergunta\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: question\n    };\n    return [msg, null]; // Retorna a próxima pergunta\n}\n\n// Lógica para tratar a primeira pergunta (turno)\nif (session.step === \"askTurno\") {\n    // Verifica se a resposta é válida (A, B ou C)\n    if (!isValidTurno(msg.payload.content)) {\n        // Se a resposta não for A, B ou C, envia a mensagem de erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira uma letra válida (A, B ou C).\"\n        };\n        return [null, msg]; // Retorna a mensagem de erro e não avança\n    }\n\n    // Salva a resposta para o turno\n    session.turno = msg.payload.content;\n    session.step = \"askLavaLoucas\"; // Avança para a próxima pergunta\n    flow.set(`session_${msg.payload.chatId}`, session); // Atualiza o estado\n\n    // Envia a próxima pergunta\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Qual a quantidade de caixas de LAVA LOUÇAS INVICTO?\"\n    };\n    return msg;\n}\n\n// Lógica para tratar as respostas das outras perguntas\nif (session.step === \"askLavaLoucas\") {\n    // Trata a resposta para a pergunta sobre LAVA LOUÇAS\n    return handleAnswer(\"lavaLoucas\", \"askAguaSanitaria\", \"Qual a quantidade de caixas de ÁGUA SANITÁRIA BTV?\");\n}\n\nif (session.step === \"askAguaSanitaria\") {\n    // Trata a resposta para a pergunta sobre ÁGUA SANITÁRIA\n    return handleAnswer(\"aguaSanitaria\", \"askProdutos\", \"Qual a quantidade de caixas de PRODUTOS 1.8L?\");\n}\n\nif (session.step === \"askProdutos\") {\n    // Trata a resposta para a pergunta sobre PRODUTOS 1.8L\n    return handleAnswer(\"produtos\", \"askAmaciante\", \"Qual a quantidade de caixas de AMACIANTE INVICTO 500 ML?\");\n}\n\nif (session.step === \"askAmaciante\") {\n    // Trata a resposta para a pergunta sobre AMACIANTE INVICTO\n    return handleAnswer(\"amaciante\", \"askDesinfetanteBTV\", \"Qual a quantidade de caixas de DESINFETANTE BTV 500 ML?\");\n}\n\nif (session.step === \"askDesinfetanteBTV\") {\n    // Trata a resposta para a pergunta sobre DESINFETANTE BTV\n    return handleAnswer(\"desinfetanteBTV\", \"askDesinfetantePinho\", \"Qual a quantidade de caixas de DESINFETANTE PINHO 500 ML?\");\n}\n\nif (session.step === \"askDesinfetantePinho\") {\n    // Trata a resposta para a pergunta sobre DESINFETANTE PINHO\n    // Verifica se a resposta é numérica\n    if (!isNumeric(msg.payload.content)) {\n        // Se a resposta não for numérica, retorna erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira apenas números.\"\n        };\n        return [null, msg]; // Retorna a mensagem de erro e não avança\n    }\n\n    // Salva a resposta numérica\n    session.desinfetantePinho = msg.payload.content;\n\n    // Marca o fluxo como concluído\n    session.step = null;\n    session.finished = true; // Marca como finalizado\n    flow.set(`session_${msg.payload.chatId}`, session); // Atualiza o estado\n\n    // Envia a mensagem final\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Aqui encerramos a nossa contagem de caixas. Obrigado!\"\n    };\n    return msg;\n}\n\n// Caso o estado seja inválido ou nenhuma condição seja atendida, retorna nulo\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 290,
+        "y": 160,
+        "wires": [
+            [
+                "14c7a1ea9a2baae5"
+            ]
+        ]
+    },
+    {
+        "id": "a3e0f939ab0bcef0",
+        "type": "telegram receiver",
+        "z": "edfe50bd74db1d17",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "x": 110,
+        "y": 40,
+        "wires": [
+            [
+                "597db39abe78807f"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "1a3e2a648b9e6cc2",
+        "type": "telegram receiver",
+        "z": "edfe50bd74db1d17",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "x": 110,
+        "y": 160,
+        "wires": [
+            [
+                "ddf8a0475f26a830"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "b61790fbe8331157",
+        "type": "telegram command",
+        "z": "edfe50bd74db1d17",
+        "name": "",
+        "command": "/caixas",
+        "description": "",
+        "registercommand": false,
+        "language": "",
+        "scope": "default",
+        "bot": "80299019b3787c27",
+        "strict": false,
+        "hasresponse": true,
+        "useregex": false,
+        "removeregexcommand": false,
+        "outputs": 2,
+        "x": 70,
+        "y": 100,
+        "wires": [
+            [
+                "242f7b677c2031ca"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "242f7b677c2031ca",
+        "type": "telegram sender",
+        "z": "edfe50bd74db1d17",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 250,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "14c7a1ea9a2baae5",
+        "type": "telegram sender",
+        "z": "edfe50bd74db1d17",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 470,
+        "y": 160,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "dec4185bf1575fe1",
+        "type": "debug",
+        "z": "843f6c7661a3f8cf",
+        "name": "debug 9",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 300,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "65b647726c5f9f50",
+        "type": "function",
+        "z": "843f6c7661a3f8cf",
+        "name": "aoki",
+        "func": "// Recupera o estado do usuário com base no chatId\nlet session = flow.get(`session_${msg.payload.chatId}`) || {};\n\n// Função para verificar se a resposta é numérica\nfunction isNumeric(value) {\n    return !isNaN(value) && Number.isFinite(Number(value));\n}\n\n// Função para verificar se a resposta é uma das letras válidas (A, B ou C)\nfunction isValidTurno(value) {\n    return value === \"A\" || value === \"B\" || value === \"C\";\n}\n\n// Verifica se o comando /aoki foi enviado e reinicia o fluxo\nif (msg.payload.content === \"/aoki\") {\n    // Reinicia o fluxo, excluindo qualquer estado anterior\n    session = { step: \"askTurno\", finished: false }; \n    flow.set(`session_${msg.payload.chatId}`, session); // Salva o estado reiniciado\n\n    // Envia a primeira pergunta (sobre o turno)\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Vamos lá! Para começar, me informe qual o seu turno: (Responda com A, B ou C)\"\n    };\n    return msg;\n}\n\n// Verifica o passo atual do diálogo\nif (!session.step || session.finished) {\n    // Ignora mensagens se o fluxo foi finalizado\n    return null;\n}\n\n// Função para tratar respostas numéricas ou erro\nfunction handleAnswer(field, nextStep, question) {\n    // Verifica se a resposta é numérica\n    if (!isNumeric(msg.payload.content)) {\n        // Se a resposta não for um número, envia erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira apenas números.\"\n        };\n        // Retorna a mensagem de erro e não avança para a próxima pergunta\n        return [null, msg];\n    }\n\n    // Salva a resposta numérica\n    session[field] = msg.payload.content;\n    session.step = nextStep; // Atualiza o passo\n    flow.set(`session_${msg.payload.chatId}`, session); // Salva o estado\n\n    // Envia a próxima pergunta\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: question\n    };\n    return [msg, null]; // Retorna a próxima pergunta\n}\n\n// Lógica para tratar a primeira pergunta (turno)\nif (session.step === \"askTurno\") {\n    // Verifica se a resposta é válida (A, B ou C)\n    if (!isValidTurno(msg.payload.content)) {\n        // Se a resposta não for A, B ou C, envia a mensagem de erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira uma letra válida (A, B ou C).\"\n        };\n        return [null, msg]; // Retorna a mensagem de erro e não avança\n    }\n\n    // Salva a resposta para o turno\n    session.turno = msg.payload.content;\n    session.step = \"askGarrafasAoki\"; // Avança para a próxima pergunta\n    flow.set(`session_${msg.payload.chatId}`, session); // Atualiza o estado\n\n    // Envia a próxima pergunta\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Qual a quantidade total de GARRAFAS AOKI? (Silo e Caixas)\"\n    };\n    return msg;\n}\n\n// Lógica para tratar as respostas das outras perguntas\nif (session.step === \"askGarrafasAoki\") {\n    // Trata a resposta para a pergunta sobre GARRAFAS AOKI\n    return handleAnswer(\"garrafasAoki\", \"askResinaPetAoki\", \"Qual a quantidade de RESINA PET AOKI? (Não esqueça de contabilizar o silo da Piovan)\");\n}\n\nif (session.step === \"askResinaPetAoki\") {\n    // Trata a resposta para a pergunta sobre RESINA PET AOKI\n    // Verifica se a resposta é numérica\n    if (!isNumeric(msg.payload.content)) {\n        // Se a resposta não for numérica, retorna erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira apenas números.\"\n        };\n        return [null, msg]; // Retorna a mensagem de erro e não avança\n    }\n\n    // Salva a resposta numérica\n    session.resinaPetAoki = msg.payload.content;\n\n    // Marca o fluxo como concluído\n    session.step = null;\n    session.finished = true; // Marca como finalizado\n    flow.set(`session_${msg.payload.chatId}`, session); // Atualiza o estado\n\n    // Envia a mensagem final\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Aqui encerramos a nossa contagem da AOKI. Obrigado!\"\n    };\n    return msg;\n}\n\n// Caso o estado seja inválido ou nenhuma condição seja atendida, retorna nulo\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 290,
+        "y": 160,
+        "wires": [
+            [
+                "96296472f27a957c"
+            ]
+        ]
+    },
+    {
+        "id": "31694d892f4221e5",
+        "type": "telegram receiver",
+        "z": "843f6c7661a3f8cf",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "x": 110,
+        "y": 40,
+        "wires": [
+            [
+                "dec4185bf1575fe1"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "0bc7a0ccde4724c2",
+        "type": "telegram receiver",
+        "z": "843f6c7661a3f8cf",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "x": 110,
+        "y": 160,
+        "wires": [
+            [
+                "65b647726c5f9f50"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "4ae43965b785e3d4",
+        "type": "telegram command",
+        "z": "843f6c7661a3f8cf",
+        "name": "",
+        "command": "/aoki",
+        "description": "",
+        "registercommand": false,
+        "language": "",
+        "scope": "default",
+        "bot": "80299019b3787c27",
+        "strict": false,
+        "hasresponse": true,
+        "useregex": false,
+        "removeregexcommand": false,
+        "outputs": 2,
+        "x": 70,
+        "y": 100,
+        "wires": [
+            [
+                "ed158a74be0b39ab"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "ed158a74be0b39ab",
+        "type": "telegram sender",
+        "z": "843f6c7661a3f8cf",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 250,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "96296472f27a957c",
+        "type": "telegram sender",
+        "z": "843f6c7661a3f8cf",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 470,
+        "y": 160,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "a57a25dad6867106",
+        "type": "debug",
+        "z": "8e24665d1ed58599",
+        "name": "debug 10",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 300,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "28ee8fd9e44b38a1",
+        "type": "function",
+        "z": "8e24665d1ed58599",
+        "d": true,
+        "name": "hipo2",
+        "func": "// Recupera o estado do usuário com base no chatId\nlet session = flow.get(`session_${msg.payload.chatId}`) || {};\n\n// Função para verificar se a resposta é numérica\nfunction isNumeric(value) {\n    return !isNaN(value) && Number.isFinite(Number(value));\n}\n\n// Função para verificar se a resposta é uma das letras válidas (A, B ou C)\nfunction isValidTurno(value) {\n    return value === \"A\" || value === \"B\" || value === \"C\";\n}\n\n// Verifica se o comando /hipo foi enviado e reinicia o fluxo\nif (msg.payload.content === \"/hipo\") {\n    // Reinicia o fluxo, excluindo qualquer estado anterior\n    session = { step: \"askTurno\", finished: false }; \n    flow.set(`session_${msg.payload.chatId}`, session); // Salva o estado reiniciado\n\n    // Envia a primeira pergunta (sobre o turno)\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Vamos lá! Para começar, me informe qual o seu turno: (Responda com A, B ou C)\"\n    };\n    return msg;\n}\n\n// Verifica o passo atual do diálogo\nif (!session.step || session.finished) {\n    // Ignora mensagens se o fluxo foi finalizado\n    return null;\n}\n\n// Função para tratar respostas numéricas ou erro\nfunction handleAnswer(field, nextStep, question) {\n    // Verifica se a resposta é numérica\n    if (!isNumeric(msg.payload.content)) {\n        // Se a resposta não for um número, envia erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira apenas números.\"\n        };\n        // Retorna a mensagem de erro e não avança para a próxima pergunta\n        return [null, msg];\n    }\n\n    // Salva a resposta numérica\n    session[field] = msg.payload.content;\n    session.step = nextStep; // Atualiza o passo\n    flow.set(`session_${msg.payload.chatId}`, session); // Salva o estado\n\n    // Envia a próxima pergunta\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: question\n    };\n    return [msg, null]; // Retorna a próxima pergunta\n}\n\n// Lógica para tratar a primeira pergunta (turno)\nif (session.step === \"askTurno\") {\n    // Verifica se a resposta é válida (A, B ou C)\n    if (!isValidTurno(msg.payload.content)) {\n        // Se a resposta não for A, B ou C, envia a mensagem de erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira uma letra válida (A, B ou C).\"\n        };\n        return [null, msg]; // Retorna a mensagem de erro e não avança\n    }\n\n    // Salva a resposta para o turno\n    session.turno = msg.payload.content;\n    session.step = \"askTanque1Volume\"; // Avança para a próxima pergunta\n    flow.set(`session_${msg.payload.chatId}`, session); // Atualiza o estado\n\n    // Envia a próxima pergunta\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Qual o volume do TANQUE 1? (m³)\"\n    };\n    return msg;\n}\n\n// Lógica para tratar as respostas das outras perguntas\nif (session.step === \"askTanque1Volume\") {\n    // Trata a resposta para o volume do TANQUE 1\n    return handleAnswer(\"tanque1Volume\", \"askTanque1Concentracao\", \"Qual a concentração do TANQUE 1? (%)\");\n}\n\nif (session.step === \"askTanque1Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 1\n    return handleAnswer(\"tanque1Concentracao\", \"askTanque2Volume\", \"Qual o volume do TANQUE 2? (m³)\");\n}\n\nif (session.step === \"askTanque2Volume\") {\n    // Trata a resposta para o volume do TANQUE 2\n    return handleAnswer(\"tanque2Volume\", \"askTanque2Concentracao\", \"Qual a concentração do TANQUE 2? (%)\");\n}\n\nif (session.step === \"askTanque2Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 2\n    return handleAnswer(\"tanque2Concentracao\", \"askTanque3Volume\", \"Qual o volume do TANQUE 3? (m³)\");\n}\n\nif (session.step === \"askTanque3Volume\") {\n    // Trata a resposta para o volume do TANQUE 3\n    return handleAnswer(\"tanque3Volume\", \"askTanque3Concentracao\", \"Qual a concentração do TANQUE 3? (%)\");\n}\n\nif (session.step === \"askTanque3Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 3\n    return handleAnswer(\"tanque3Concentracao\", \"askTanque4Volume\", \"Qual o volume do TANQUE 4? (m³)\");\n}\n\nif (session.step === \"askTanque4Volume\") {\n    // Trata a resposta para o volume do TANQUE 4\n    return handleAnswer(\"tanque4Volume\", \"askTanque4Concentracao\", \"Qual a concentração do TANQUE 4? (%)\");\n}\n\nif (session.step === \"askTanque4Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 4\n    return handleAnswer(\"tanque4Concentracao\", \"askTanque5Volume\", \"Qual o volume do TANQUE 5? (m³)\");\n}\n\nif (session.step === \"askTanque5Volume\") {\n    // Trata a resposta para o volume do TANQUE 5\n    return handleAnswer(\"tanque5Volume\", \"askTanque5Concentracao\", \"Qual a concentração do TANQUE 5? (%)\");\n}\n\nif (session.step === \"askTanque5Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 5\n    // Verifica se a resposta é numérica\n    if (!isNumeric(msg.payload.content)) {\n        // Se a resposta não for numérica, retorna erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira apenas números.\"\n        };\n        return [null, msg]; // Retorna a mensagem de erro e não avança\n    }\n\n    // Salva a resposta numérica\n    session.tanque5Concentracao = msg.payload.content;\n\n    // Marca o fluxo como concluído\n    session.step = null;\n    session.finished = true; // Marca como finalizado\n    flow.set(`session_${msg.payload.chatId}`, session); // Atualiza o estado\n\n    // Envia a mensagem final\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Aqui encerramos a nossa sondagem. Obrigado!\"\n    };\n    return msg;\n}\n\n// Caso o estado seja inválido ou nenhuma condição seja atendida, retorna nulo\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 290,
+        "y": 160,
+        "wires": [
+            [
+                "f7fd6bd3cd869a9d"
+            ]
+        ]
+    },
+    {
+        "id": "0671429a026a572e",
+        "type": "function",
+        "z": "8e24665d1ed58599",
+        "name": "hipo",
+        "func": "// Recupera o estado do usuário com base no chatId\nlet session = flow.get(`session_${msg.payload.chatId}`) || {};\n\n// Função para verificar se a resposta é numérica\nfunction isNumeric(value) {\n    return !isNaN(value) && Number.isFinite(Number(value));\n}\n\n// Função para verificar se a resposta é uma das letras válidas (A, B ou C)\nfunction isValidTurno(value) {\n    return value === \"A\" || value === \"B\" || value === \"C\";\n}\n\n// Verifica se o comando /hipo foi enviado e reinicia o fluxo\nif (msg.payload.content === \"/hipo\") {\n    // Reinicia o fluxo, excluindo qualquer estado anterior\n    session = { step: \"askTurno\", finished: false }; \n    flow.set(`session_${msg.payload.chatId}`, session); // Salva o estado reiniciado\n\n    // Envia a primeira pergunta (sobre o turno)\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Vamos lá! Para começar, me informe qual o seu turno: (Responda com A, B ou C)\"\n    };\n    return msg;\n}\n\n// Verifica o passo atual do diálogo\nif (!session.step || session.finished) {\n    // Ignora mensagens se o fluxo foi finalizado\n    return null;\n}\n\n// Função para tratar respostas numéricas ou erro\nfunction handleAnswer(field, nextStep, question) {\n    // Verifica se a resposta é numérica\n    if (!isNumeric(msg.payload.content)) {\n        // Se a resposta não for um número, envia erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira apenas números.\"\n        };\n        // Retorna a mensagem de erro e não avança para a próxima pergunta\n        return [null, msg];\n    }\n\n    // Salva a resposta numérica\n    session[field] = msg.payload.content;\n    session.step = nextStep; // Atualiza o passo\n    flow.set(`session_${msg.payload.chatId}`, session); // Salva o estado\n\n    // Envia a próxima pergunta\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: question\n    };\n    return [msg, null]; // Retorna a próxima pergunta\n}\n\n// Lógica para tratar a primeira pergunta (turno)\nif (session.step === \"askTurno\") {\n    // Verifica se a resposta é válida (A, B ou C)\n    if (!isValidTurno(msg.payload.content)) {\n        // Se a resposta não for A, B ou C, envia a mensagem de erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira uma letra válida (A, B ou C).\"\n        };\n        return [null, msg]; // Retorna a mensagem de erro e não avança\n    }\n\n    // Salva a resposta para o turno\n    session.turno = msg.payload.content;\n    session.step = \"showOrientation\"; // Avança para a etapa de orientação\n    flow.set(`session_${msg.payload.chatId}`, session); // Atualiza o estado\n\n    // Envia a mensagem de orientação\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Orientação: Preencha utilizando apenas números e ponto ( . ) para casas decimais. Responda: Ok\"\n    };\n    return msg;\n}\n\n// Lógica para exibir a orientação e avançar automaticamente para a segunda pergunta\nif (session.step === \"showOrientation\") {\n    session.step = \"askTanque1Volume\"; // Avança diretamente para a segunda pergunta\n    flow.set(`session_${msg.payload.chatId}`, session); // Atualiza o estado\n\n    // Envia a segunda pergunta\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Qual o volume do TANQUE 1? (m³)\"\n    };\n    return msg;\n}\n\n// Lógica para tratar as respostas das outras perguntas\nif (session.step === \"askTanque1Volume\") {\n    // Trata a resposta para o volume do TANQUE 1\n    return handleAnswer(\"tanque1Volume\", \"askTanque1Concentracao\", \"Qual a concentração do TANQUE 1? (%)\");\n}\n\nif (session.step === \"askTanque1Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 1\n    return handleAnswer(\"tanque1Concentracao\", \"askTanque2Volume\", \"Qual o volume do TANQUE 2? (m³)\");\n}\n\nif (session.step === \"askTanque2Volume\") {\n    // Trata a resposta para o volume do TANQUE 2\n    return handleAnswer(\"tanque2Volume\", \"askTanque2Concentracao\", \"Qual a concentração do TANQUE 2? (%)\");\n}\n\nif (session.step === \"askTanque2Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 2\n    return handleAnswer(\"tanque2Concentracao\", \"askTanque3Volume\", \"Qual o volume do TANQUE 3? (m³)\");\n}\n\nif (session.step === \"askTanque3Volume\") {\n    // Trata a resposta para o volume do TANQUE 3\n    return handleAnswer(\"tanque3Volume\", \"askTanque3Concentracao\", \"Qual a concentração do TANQUE 3? (%)\");\n}\n\nif (session.step === \"askTanque3Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 3\n    return handleAnswer(\"tanque3Concentracao\", \"askTanque4Volume\", \"Qual o volume do TANQUE 4? (m³)\");\n}\n\nif (session.step === \"askTanque4Volume\") {\n    // Trata a resposta para o volume do TANQUE 4\n    return handleAnswer(\"tanque4Volume\", \"askTanque4Concentracao\", \"Qual a concentração do TANQUE 4? (%)\");\n}\n\nif (session.step === \"askTanque4Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 4\n    return handleAnswer(\"tanque4Concentracao\", \"askTanque5Volume\", \"Qual o volume do TANQUE 5? (m³)\");\n}\n\nif (session.step === \"askTanque5Volume\") {\n    // Trata a resposta para o volume do TANQUE 5\n    return handleAnswer(\"tanque5Volume\", \"askTanque5Concentracao\", \"Qual a concentração do TANQUE 5? (%)\");\n}\n\nif (session.step === \"askTanque5Concentracao\") {\n    // Trata a resposta para a concentração do TANQUE 5\n    // Verifica se a resposta é numérica\n    if (!isNumeric(msg.payload.content)) {\n        // Se a resposta não for numérica, retorna erro e repete a pergunta\n        msg.payload = {\n            chatId: msg.payload.chatId,\n            type: 'message',\n            content: \"Por favor, insira apenas números.\"\n        };\n        return [null, msg]; // Retorna a mensagem de erro e não avança\n    }\n\n    // Salva a resposta numérica\n    session.tanque5Concentracao = msg.payload.content;\n\n    // Marca o fluxo como concluído\n    session.step = null;\n    session.finished = true; // Marca como finalizado\n    flow.set(`session_${msg.payload.chatId}`, session); // Atualiza o estado\n\n    // Envia a mensagem final\n    msg.payload = {\n        chatId: msg.payload.chatId,\n        type: 'message',\n        content: \"Aqui encerramos a nossa sondagem. Obrigado!\"\n    };\n    return msg;\n}\n\n// Caso o estado seja inválido ou nenhuma condição seja atendida, retorna nulo\nreturn null;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 290,
+        "y": 220,
+        "wires": [
+            [
+                "07e1915f2c4cc6fa"
+            ]
+        ]
+    },
+    {
+        "id": "f6bf77a084f83eb0",
+        "type": "telegram receiver",
+        "z": "8e24665d1ed58599",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "x": 110,
+        "y": 40,
+        "wires": [
+            [
+                "a57a25dad6867106"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "ebda235be29ea118",
+        "type": "telegram receiver",
+        "z": "8e24665d1ed58599",
+        "d": true,
+        "name": "",
+        "bot": "80299019b3787c27",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "x": 110,
+        "y": 160,
+        "wires": [
+            [
+                "28ee8fd9e44b38a1"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "6b16aff9385ad9cd",
+        "type": "telegram receiver",
+        "z": "8e24665d1ed58599",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "saveDataDir": "",
+        "filterCommands": false,
+        "x": 110,
+        "y": 220,
+        "wires": [
+            [
+                "0671429a026a572e"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "7431848d9e3c4bac",
+        "type": "telegram command",
+        "z": "8e24665d1ed58599",
+        "name": "",
+        "command": "/hipo",
+        "description": "",
+        "registercommand": false,
+        "language": "",
+        "scope": "default",
+        "bot": "80299019b3787c27",
+        "strict": false,
+        "hasresponse": true,
+        "useregex": false,
+        "removeregexcommand": false,
+        "outputs": 2,
+        "x": 70,
+        "y": 100,
+        "wires": [
+            [
+                "55b43e22a3b95f74"
+            ],
+            []
+        ]
+    },
+    {
+        "id": "55b43e22a3b95f74",
+        "type": "telegram sender",
+        "z": "8e24665d1ed58599",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 250,
+        "y": 100,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "f7fd6bd3cd869a9d",
+        "type": "telegram sender",
+        "z": "8e24665d1ed58599",
+        "d": true,
+        "name": "",
+        "bot": "80299019b3787c27",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 470,
+        "y": 160,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "07e1915f2c4cc6fa",
+        "type": "telegram sender",
+        "z": "8e24665d1ed58599",
+        "name": "",
+        "bot": "80299019b3787c27",
+        "haserroroutput": false,
+        "outputs": 1,
+        "x": 470,
+        "y": 220,
+        "wires": [
+            []
+        ]
+    }
+]
